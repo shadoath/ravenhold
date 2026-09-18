@@ -1,0 +1,129 @@
+@import url("https://fonts.googleapis.com/css2?family=Cinzel:wght@500;600;700&family=Source+Sans+3:ital,wght@0,400;0,500;0,600;0,700;1,400&display=swap");
+@import "tailwindcss";
+
+@theme {
+  --font-display: "Cinzel", Palatino, "Palatino Linotype", "Times New Roman", serif;
+  --font-sans: "Source Sans 3", "Segoe UI", system-ui, sans-serif;
+
+  --color-bg: #121110;
+  --color-surface: #1c1a17;
+  --color-elevated: #25221c;
+  --color-fg: #e8e0d4;
+  --color-muted: #9a9286;
+  --color-subtle: #6e675c;
+  --color-border: color-mix(in oklab, var(--color-fg) 14%, transparent);
+  --color-border-strong: color-mix(in oklab, var(--color-fg) 26%, transparent);
+  --color-accent: #c8c2b4;
+  --color-accent-fg: #121110;
+  --color-danger: #a94a42;
+  --color-danger-fg: #f3e6e0;
+  --color-coin: #c4b38a;
+  --color-moss: #7a8a68;
+  --color-ring: #d9d1c3;
+
+  --radius-xs: 4px;
+  --radius-sm: 8px;
+  --radius-md: 12px;
+  --radius-lg: 16px;
+  --radius-xl: 24px;
+
+  --motion-stagger: 40ms;
+  --motion-micro: 80ms;
+  --motion-quick: 150ms;
+  --motion-fast: 250ms;
+  --motion-medium: 350ms;
+  --motion-slow: 400ms;
+  --motion-emphasis: 500ms;
+
+  --ease-smooth-out: cubic-bezier(0.22, 1, 0.36, 1);
+  --ease-out: cubic-bezier(0.23, 1, 0.32, 1);
+  --ease-pop: cubic-bezier(0.34, 1.36, 0.64, 1);
+}
+
+@layer base {
+  html,
+  body,
+  #app {
+    min-height: 100%;
+    background: var(--color-bg);
+    color: var(--color-fg);
+  }
+
+  html {
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+  }
+
+  h1,
+  h2,
+  h3 {
+    text-wrap: balance;
+    font-family: var(--font-display);
+  }
+
+  p {
+    text-wrap: pretty;
+  }
+
+  button:not(:disabled),
+  [role="button"]:not(:disabled) {
+    cursor: pointer;
+  }
+
+  button:disabled {
+    cursor: not-allowed;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+}
+
+@keyframes overlay-rise {
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+    filter: blur(3px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+    filter: blur(0);
+  }
+}
+
+@keyframes banner-in {
+  from {
+    opacity: 0;
+    transform: translateY(6px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.overlay-rise {
+  animation: overlay-rise var(--motion-slow) var(--ease-smooth-out) both;
+}
+
+.overlay-rise-2 {
+  animation: overlay-rise var(--motion-slow) var(--ease-smooth-out) both;
+  animation-delay: var(--motion-stagger);
+}
+
+.overlay-rise-3 {
+  animation: overlay-rise var(--motion-slow) var(--ease-smooth-out) both;
+  animation-delay: calc(var(--motion-stagger) * 2);
+}
+
+.wave-banner {
+  animation: banner-in var(--motion-fast) var(--ease-smooth-out) both;
+}
