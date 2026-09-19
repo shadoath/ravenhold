@@ -19,13 +19,13 @@ export function Overlays({ snap, loading, onStart, onRestart, onResume }: Props)
               Ravenhold
             </h1>
             <p className="overlay-rise-3 mt-3 text-sm leading-relaxed text-muted sm:mt-4">
-              The host does not keep to the road. They flow toward the keep. Raise palisades and ditches to funnel them,
-              plant towers on the killing ground, and set a watch on the choke.
+              The host comes as a wide front from the west. Drag palisades and ditches to fuse a funnel, plant towers
+              anywhere on the field, and set a watch to walk between two posts.
             </p>
             <ul className="overlay-rise-3 mt-4 space-y-2 text-sm text-fg">
-              <li>Stakes upgrade to timber, then stone. Raise a tower on stone and mount a gun — height buys range.</li>
+              <li>Touching stakes merge into one wall. Upgrade timber, then stone, then raise a tower on it.</li>
               <li>Seal the field and they smash the wall. Some hosts bring ladders or rams.</li>
-              <li>The Marshal patrols a line you mark. One captain only.</li>
+              <li>Place a Watch or the Marshal, then tap A and B — they patrol the whole run.</li>
             </ul>
             <button
               type="button"

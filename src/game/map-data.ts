@@ -21,33 +21,6 @@ export const WAYPOINTS: Vec[] = [
   { x: 1468, y: 458 },
 ];
 
-type Circle = { x: number; y: number; r: number };
-
-const BLOCK_CIRCLES: Circle[] = [
-  { x: 70, y: 110, r: 120 },
-  { x: 180, y: 60, r: 90 },
-  { x: 40, y: 250, r: 70 },
-  { x: 90, y: 720, r: 110 },
-  { x: 210, y: 820, r: 90 },
-  { x: 360, y: 40, r: 70 },
-  { x: 520, y: 90, r: 55 },
-  { x: 700, y: 50, r: 80 },
-  { x: 880, y: 80, r: 70 },
-  { x: 1080, y: 70, r: 90 },
-  { x: 1280, y: 90, r: 80 },
-  { x: 420, y: 820, r: 70 },
-  { x: 620, y: 840, r: 80 },
-  { x: 840, y: 820, r: 75 },
-  { x: 1100, y: 800, r: 85 },
-  { x: 980, y: 250, r: 42 },
-  { x: 760, y: 220, r: 38 },
-  { x: 300, y: 620, r: 40 },
-  { x: 470, y: 700, r: 36 },
-  { x: 1320, y: 620, r: 48 },
-  { x: 1180, y: 700, r: 44 },
-  { x: 1520, y: 430, r: 118 },
-];
-
 const PATH_HALF = 44;
 const KEEP_MIN_X = 1488;
 
@@ -101,24 +74,19 @@ function markDisk(x: number, y: number, radius: number, into: Set<string>) {
     }
   }
 
-  for (const circle of BLOCK_CIRCLES) markDisk(circle.x, circle.y, circle.r, blockedCells);
-
+  // Only the keep itself is reserved. The rest of the field is fair ground.
   for (let c = 0; c < COLS; c++) {
-    blockedCells.add(key(c, 0));
-    if (c >= 28) {
-      for (let r = 0; r < ROWS; r++) {
-        const p = cellCenter(c, r);
-        if (p.x >= KEEP_MIN_X) blockedCells.add(key(c, r));
-      }
+    for (let r = 0; r < ROWS; r++) {
+      const p = cellCenter(c, r);
+      if (p.x >= KEEP_MIN_X) blockedCells.add(key(c, r));
     }
   }
 
   const gate = worldToCell(KEEP_GATE.x, KEEP_GATE.y);
   blockedCells.delete(key(gate.c, gate.r));
 
-  for (let r = 5; r <= 13; r++) {
-    if (!blockedCells.has(key(0, r))) spawnCells.push(cellCenter(0, r));
-    if (!blockedCells.has(key(1, r))) spawnCells.push(cellCenter(1, r));
+  for (let r = 0; r < ROWS; r++) {
+    spawnCells.push(cellCenter(0, r));
   }
 })();
 
@@ -138,18 +106,15 @@ export function inMap(c: number, r: number) {
   return inBounds(c, r);
 }
 
+/** Towers, walls, ditches, and retainers: anywhere but the keep. */
 export function isBuildableCell(c: number, r: number) {
   if (!inBounds(c, r)) return false;
-  if (pathCells.has(key(c, r))) return false;
   if (blockedCells.has(key(c, r))) return false;
   return true;
 }
 
-/** Walls and ditches may sit on the road. */
 export function isWorkCell(c: number, r: number) {
-  if (!inBounds(c, r)) return false;
-  if (blockedCells.has(key(c, r))) return false;
-  return true;
+  return isBuildableCell(c, r);
 }
 
 export function cellWorld(c: number, r: number): Vec {

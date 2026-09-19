@@ -38,9 +38,10 @@ import {
   isBlockedCell,
   isBuildableCell,
   isPathCell,
-  isWorkCell,
   ROWS,
   spawnPoints,
+  WORLD_H,
+  WORLD_W,
   worldToCell,
 } from "./map-data";
 import type {
@@ -51,6 +52,7 @@ import type {
   GearKind,
   HudSnapshot,
   Particle,
+  PatrolStep,
   Phase,
   Projectile,
   Retainer,
@@ -89,6 +91,31 @@ function isRetainerKind(kind: BuildKind): kind is RetainerKind {
   return kind === "watch" || kind === "hero";
 }
 
+function lineCells(c0: number, r0: number, c1: number, r1: number) {
+  const cells: { c: number; r: number }[] = [];
+  let x = c0;
+  let y = r0;
+  const dx = Math.abs(c1 - c0);
+  const dy = Math.abs(r1 - r0);
+  const sx = c0 < c1 ? 1 : -1;
+  const sy = r0 < r1 ? 1 : -1;
+  let err = dx - dy;
+  for (;;) {
+    cells.push({ c: x, r: y });
+    if (x === c1 && y === r1) break;
+    const e2 = 2 * err;
+    if (e2 > -dy) {
+      err -= dy;
+      x += sx;
+    }
+    if (e2 < dx) {
+      err += dx;
+      y += sy;
+    }
+  }
+  return cells;
+}
+
 export class GameEngine {
   phase: Phase = "menu";
   gold = START_GOLD;
@@ -107,6 +134,7 @@ export class GameEngine {
   reducedMotion = false;
   announce = "";
   announceT = 0;
+  patrolEdit: { id: number; step: PatrolStep } | null = null;
 
   enemies: Enemy[] = [];
   towers: Tower[] = [];
@@ -126,6 +154,8 @@ export class GameEngine {
   private flowLadder = createField();
   private flowDirty = true;
   private spawnI = 0;
+  private paintCol = -1;
+  private paintRow = -1;
 
   constructor() {
     if (typeof window !== "undefined") {
@@ -146,6 +176,7 @@ export class GameEngine {
     this.selectedTowerId = null;
     this.selectedWorkId = null;
     this.selectedRetainerId = null;
+    this.patrolEdit = null;
     this.announce = "";
     this.announceT = 0;
     this.enemies = [];
@@ -163,6 +194,8 @@ export class GameEngine {
     this.flashRed = 0;
     this.flowDirty = true;
     this.spawnI = 0;
+    this.paintCol = -1;
+    this.paintRow = -1;
     this.rebuildFlow();
   }
 
@@ -222,6 +255,8 @@ export class GameEngine {
             sellValue: Math.floor(ret.spent * SELL_RATIO),
             blurb: RETAINERS[ret.kind].blurb,
             hasPatrol: ret.hasPatrol,
+            settingPatrol: this.patrolEdit?.id === ret.id,
+            patrolStep: this.patrolEdit?.id === ret.id ? this.patrolEdit.step : null,
           }
         : null,
       canStartWave: this.phase === "playing" && !this.spawning && this.wave < WAVES.length,
@@ -305,6 +340,7 @@ export class GameEngine {
       this.selectedTowerId = null;
       this.selectedWorkId = null;
       this.selectedRetainerId = null;
+      this.patrolEdit = null;
     }
     sfx.ui();
   }
@@ -323,6 +359,10 @@ export class GameEngine {
   tap(x: number, y: number) {
     if (this.phase !== "playing") return;
     const { c, r } = worldToCell(x, y);
+    if (this.patrolEdit) {
+      this.applyPatrolTap(c, r);
+      return;
+    }
     const occ = this.occupied.get(`${c},${r}`);
     if (occ) {
       const work = this.works.find((w) => w.id === occ);
@@ -340,16 +380,20 @@ export class GameEngine {
       return;
     }
     if (this.selectedKind) {
-      this.tryPlace(c, r, this.selectedKind);
+      const placed = this.tryPlace(c, r, this.selectedKind);
+      if (placed && isWorkKind(this.selectedKind)) {
+        this.paintCol = c;
+        this.paintRow = r;
+      }
       return;
     }
-    const hero = this.retainers.find((h) => h.id === this.selectedRetainerId && h.kind === "hero");
-    if (hero && isWorkCell(c, r)) {
+    const guard = this.retainers.find((h) => h.id === this.selectedRetainerId);
+    if (guard && inMap(c, r) && !isBlockedCell(c, r)) {
       const pos = cellWorld(c, r);
-      hero.patrolX = pos.x;
-      hero.patrolY = pos.y;
-      hero.hasPatrol = true;
-      this.float(pos.x, pos.y - 18, "Patrol", "#e8e0d4");
+      guard.patrolX = pos.x;
+      guard.patrolY = pos.y;
+      guard.hasPatrol = true;
+      this.float(pos.x, pos.y - 18, "Post B", "#e8e0d4");
       sfx.ui();
       return;
     }
@@ -358,10 +402,48 @@ export class GameEngine {
     this.selectedRetainerId = null;
   }
 
+  beginPatrol() {
+    const ret = this.retainers.find((r) => r.id === this.selectedRetainerId);
+    if (!ret) {
+      sfx.deny();
+      return;
+    }
+    this.selectedKind = null;
+    this.patrolEdit = { id: ret.id, step: "a" };
+    this.float(ret.x, ret.y - 24, "Post A", "#e8e0d4");
+    sfx.ui();
+  }
+
+  private applyPatrolTap(c: number, r: number) {
+    if (!inMap(c, r) || isBlockedCell(c, r)) {
+      sfx.deny();
+      return;
+    }
+    const ret = this.retainers.find((x) => x.id === this.patrolEdit?.id);
+    if (!ret) {
+      this.patrolEdit = null;
+      return;
+    }
+    const pos = cellWorld(c, r);
+    if (this.patrolEdit?.step === "a") {
+      ret.homeX = pos.x;
+      ret.homeY = pos.y;
+      this.patrolEdit = { id: ret.id, step: "b" };
+      this.float(pos.x, pos.y - 18, "Post A", "#e8e0d4");
+      sfx.ui();
+      return;
+    }
+    ret.patrolX = pos.x;
+    ret.patrolY = pos.y;
+    ret.hasPatrol = true;
+    this.patrolEdit = null;
+    this.float(pos.x, pos.y - 18, "Post B", "#e8e0d4");
+    sfx.ui();
+  }
+
   canPlace(c: number, r: number, kind: BuildKind) {
     if (this.occupied.has(`${c},${r}`)) return false;
-    if (isTowerKind(kind) || isRetainerKind(kind)) return isBuildableCell(c, r);
-    return isWorkCell(c, r);
+    return isBuildableCell(c, r);
   }
 
   private pickOccupied(id: number) {
@@ -382,20 +464,44 @@ export class GameEngine {
     this.selectedWorkId = null;
   }
 
-  tryPlace(c: number, r: number, kind: BuildKind) {
+  tryPlace(c: number, r: number, kind: BuildKind, quiet = false) {
     if (!this.canPlace(c, r, kind)) {
-      sfx.deny();
+      if (!quiet) sfx.deny();
       return false;
     }
-    if (isTowerKind(kind)) return this.placeTower(c, r, kind);
-    if (isWorkKind(kind)) return this.placeWork(c, r, kind);
-    return this.placeRetainer(c, r, kind);
+    if (isTowerKind(kind)) return this.placeTower(c, r, kind, quiet);
+    if (isWorkKind(kind)) return this.placeWork(c, r, kind, quiet);
+    return this.placeRetainer(c, r, kind, quiet);
   }
 
-  private placeTower(c: number, r: number, kind: TowerKind) {
+  paint(x: number, y: number) {
+    if (this.phase !== "playing") return false;
+    const kind = this.selectedKind;
+    if (kind !== "wall" && kind !== "ditch") return false;
+    const { c, r } = worldToCell(x, y);
+    if (c === this.paintCol && r === this.paintRow) return false;
+    let any = false;
+    if (this.paintCol >= 0) {
+      for (const cell of lineCells(this.paintCol, this.paintRow, c, r)) {
+        if (this.tryPlace(cell.c, cell.r, kind, true)) any = true;
+      }
+    } else if (this.tryPlace(c, r, kind, true)) {
+      any = true;
+    }
+    this.paintCol = c;
+    this.paintRow = r;
+    return any;
+  }
+
+  endPaint() {
+    this.paintCol = -1;
+    this.paintRow = -1;
+  }
+
+  private placeTower(c: number, r: number, kind: TowerKind, quiet = false) {
     const def = TOWERS[kind];
     if (this.gold < def.cost) {
-      sfx.deny();
+      if (!quiet) sfx.deny();
       return false;
     }
     this.gold -= def.cost;
@@ -422,10 +528,10 @@ export class GameEngine {
     return true;
   }
 
-  private placeWork(c: number, r: number, kind: WorkKind) {
+  private placeWork(c: number, r: number, kind: WorkKind, quiet = false) {
     const def = WORKS[kind];
     if (this.gold < def.cost) {
-      sfx.deny();
+      if (!quiet) sfx.deny();
       return false;
     }
     this.gold -= def.cost;
@@ -455,18 +561,18 @@ export class GameEngine {
     this.selectedWorkId = work.id;
     this.flowDirty = true;
     this.burst(pos.x, pos.y, 8, kind === "ditch" ? "#6a5340" : "#c8c2b4");
-    sfx.place();
+    if (!quiet) sfx.place();
     return true;
   }
 
-  private placeRetainer(c: number, r: number, kind: RetainerKind) {
+  private placeRetainer(c: number, r: number, kind: RetainerKind, quiet = false) {
     const def = RETAINERS[kind];
     if (kind === "hero" && this.retainers.some((x) => x.kind === "hero")) {
-      sfx.deny();
+      if (!quiet) sfx.deny();
       return false;
     }
     if (this.gold < def.cost) {
-      sfx.deny();
+      if (!quiet) sfx.deny();
       return false;
     }
     this.gold -= def.cost;
@@ -496,8 +602,10 @@ export class GameEngine {
     this.occupied.set(`${c},${r}`, ret.id);
     this.selectedRetainerId = ret.id;
     this.selectedKind = null;
+    this.patrolEdit = { id: ret.id, step: "b" };
     this.flowDirty = true;
     this.burst(pos.x, pos.y, 10, "#c4b38a");
+    this.float(pos.x, pos.y - 22, "Post A — tap B", "#e8e0d4");
     sfx.place();
     return true;
   }
@@ -660,6 +768,7 @@ export class GameEngine {
       this.refund(r.x, r.y, r.col, r.row, r.spent);
       this.retainers.splice(idx, 1);
       this.selectedRetainerId = null;
+      this.patrolEdit = null;
       this.flowDirty = true;
     }
   }
@@ -782,13 +891,15 @@ export class GameEngine {
   private spawnEnemy(kind: EnemyKind, gear: GearKind) {
     const def = ENEMIES[kind];
     const spots = spawnPoints();
-    const spot = spots[this.spawnI++ % spots.length] ?? { x: 8, y: 448 };
-    const jitter = ((this.nextId % 7) - 3) * 7;
+    const n = spots.length || 1;
+    const spot = spots[(this.spawnI * 5) % n] ?? { x: 24, y: WORLD_H / 2 };
+    this.spawnI += 1;
+    const laneJitter = ((this.nextId * 17) % 11) - 5;
     this.enemies.push({
       id: this.nextId++,
       kind,
-      x: spot.x - 18,
-      y: spot.y + jitter,
+      x: 18,
+      y: Math.max(28, Math.min(WORLD_H - 28, spot.y + laneJitter)),
       vx: 0,
       vy: 0,
       hp: def.hp,
@@ -996,15 +1107,25 @@ export class GameEngine {
       }
       let tx = ret.homeX;
       let ty = ret.homeY;
-      if (ret.kind === "watch") {
-        const ang = this.time * 0.85 + ret.id;
-        tx = ret.homeX + Math.cos(ang) * 30;
-        ty = ret.homeY + Math.sin(ang) * 18;
-      } else if (ret.hasPatrol) {
-        const cycle = (this.time * 0.22 + ret.id * 0.1) % 2;
-        const t = cycle < 1 ? cycle : 2 - cycle;
-        tx = ret.homeX + (ret.patrolX - ret.homeX) * t;
-        ty = ret.homeY + (ret.patrolY - ret.homeY) * t;
+      if (ret.hasPatrol) {
+        const dxp = ret.patrolX - ret.homeX;
+        const dyp = ret.patrolY - ret.homeY;
+        const span = Math.hypot(dxp, dyp);
+        if (span > 8) {
+          const u = (this.time * def.speed) / span;
+          const ping = u % 2;
+          const t = ping < 1 ? ping : 2 - ping;
+          tx = ret.homeX + dxp * t;
+          ty = ret.homeY + dyp * t;
+        }
+      } else {
+        const ang = this.time * 0.42 + ret.id * 0.7;
+        const rx = ret.kind === "hero" ? 88 : 110;
+        const ry = ret.kind === "hero" ? 54 : 78;
+        tx = ret.homeX + Math.cos(ang) * rx;
+        ty = ret.homeY + Math.sin(ang * 0.72) * ry;
+        tx = Math.max(28, Math.min(WORLD_W - 80, tx));
+        ty = Math.max(28, Math.min(WORLD_H - 28, ty));
       }
       const dx = tx - ret.x;
       const dy = ty - ret.y;

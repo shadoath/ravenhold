@@ -9,6 +9,7 @@ export type ProjectileKind = "arrow" | "bolt" | "stone" | "orb";
 export type GearKind = "none" | "ladder" | "ram";
 export type EnemyState = "move" | "attack" | "climb";
 export type WallTier = 0 | 1 | 2;
+export type PatrolStep = "a" | "b";
 
 export type Vec = { x: number; y: number };
 
@@ -252,6 +253,8 @@ export type SelectedRetainerInfo = {
   sellValue: number;
   blurb: string;
   hasPatrol: boolean;
+  settingPatrol: boolean;
+  patrolStep: PatrolStep | null;
 };
 
 export type HudSnapshot = {

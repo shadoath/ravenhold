@@ -18,9 +18,8 @@ import {
   WORLD_W,
 } from "./config";
 import type { GameEngine } from "./engine";
-import type { BuildKind, Enemy } from "./types";
+import type { BuildKind, Enemy, Work } from "./types";
 
-const PATH_COLOR = "rgba(232, 224, 212, 0.16)";
 const RANGE_FILL = "rgba(200, 194, 180, 0.1)";
 const RANGE_STROKE = "rgba(232, 224, 212, 0.55)";
 const OK_FILL = "rgba(122, 138, 104, 0.28)";
@@ -34,6 +33,163 @@ function frameIndex(anim: number, count: number) {
 
 function isTower(kind: BuildKind) {
   return kind === "longbow" || kind === "ballista" || kind === "catapult" || kind === "warden";
+}
+
+type Links = { n: boolean; e: boolean; s: boolean; w: boolean };
+
+function workLinks(engine: GameEngine, col: number, row: number, kind: "wall" | "ditch"): Links {
+  const match = (c: number, r: number) => engine.works.some((o) => o.col === c && o.row === r && o.kind === kind);
+  return {
+    n: match(col, row - 1),
+    e: match(col + 1, row),
+    s: match(col, row + 1),
+    w: match(col - 1, row),
+  };
+}
+
+function linked(links: Links) {
+  return links.n || links.e || links.s || links.w;
+}
+
+function linkedBox(cx: number, cy: number, links: Links, insetX: number, insetY: number) {
+  const half = CELL / 2;
+  return {
+    x: cx - half + (links.w ? 0 : insetX),
+    y: cy - half + (links.n ? 0 : insetY),
+    w: CELL - (links.w ? 0 : insetX) - (links.e ? 0 : insetX),
+    h: CELL - (links.n ? 0 : insetY) - (links.s ? 0 : insetY),
+  };
+}
+
+function drawDitchCell(ctx: CanvasRenderingContext2D, engine: GameEngine, atlas: Atlas, w: Work) {
+  const links = workLinks(engine, w.col, w.row, "ditch");
+  const box = linkedBox(w.x, w.y, links, 8, 11);
+  ctx.save();
+  ctx.fillStyle = "rgba(36, 26, 18, 0.88)";
+  ctx.beginPath();
+  ctx.roundRect(box.x, box.y, box.w, box.h, linked(links) ? 4 : 12);
+  ctx.fill();
+  ctx.fillStyle = "rgba(92, 64, 42, 0.9)";
+  ctx.beginPath();
+  ctx.roundRect(box.x + 3, box.y + 4, box.w - 6, box.h - 8, 8);
+  ctx.fill();
+  ctx.fillStyle = "rgba(22, 18, 14, 0.55)";
+  ctx.beginPath();
+  ctx.roundRect(box.x + 8, box.y + box.h * 0.38, box.w - 16, Math.max(6, box.h * 0.28), 6);
+  ctx.fill();
+  if (!linked(links)) {
+    const size = WORK_DRAW.ditch;
+    ctx.globalAlpha = 0.55;
+    ctx.drawImage(atlas.works.ditch, w.x - size.w / 2, w.y - size.h / 2, size.w, size.h);
+  }
+  ctx.restore();
+}
+
+function drawWallBody(ctx: CanvasRenderingContext2D, w: Work, links: Links) {
+  const tier = w.hasKeep ? 2 : w.wallTier;
+  const box = linkedBox(w.x, w.y, links, tier === 0 ? 12 : 4, tier === 0 ? 10 : 6);
+  if (tier === 0) {
+    ctx.fillStyle = "#5a4634";
+    const stakeW = 5;
+    const start = box.x + 2;
+    const count = Math.max(2, Math.floor(box.w / 9));
+    for (let i = 0; i < count; i++) {
+      const sx = start + (i + 0.5) * (box.w / count) - stakeW / 2;
+      ctx.fillRect(sx, box.y, stakeW, box.h);
+      ctx.fillStyle = "#8a6a48";
+      ctx.fillRect(sx + 1, box.y, 1.5, box.h);
+      ctx.fillStyle = "#5a4634";
+    }
+    ctx.fillStyle = "#6a5340";
+    ctx.fillRect(box.x, box.y + box.h * 0.28, box.w, 3);
+    ctx.fillRect(box.x, box.y + box.h * 0.62, box.w, 3);
+    return;
+  }
+  if (tier === 1) {
+    ctx.fillStyle = "#4a3828";
+    ctx.beginPath();
+    ctx.roundRect(box.x, box.y, box.w, box.h, 3);
+    ctx.fill();
+    ctx.fillStyle = "#7a5c3c";
+    const planks = Math.max(3, Math.floor(box.w / 8));
+    for (let i = 0; i < planks; i++) {
+      const px = box.x + i * (box.w / planks) + 1;
+      ctx.fillRect(px, box.y + 2, Math.max(4, box.w / planks - 2), box.h - 4);
+      ctx.fillStyle = "#5a4634";
+      ctx.fillRect(px + Math.max(4, box.w / planks - 2) - 1, box.y + 2, 1, box.h - 4);
+      ctx.fillStyle = "#7a5c3c";
+    }
+    ctx.fillStyle = "#c4b38a";
+    ctx.fillRect(box.x, box.y, box.w, 3);
+    return;
+  }
+  ctx.fillStyle = "#5c5850";
+  ctx.beginPath();
+  ctx.roundRect(box.x, box.y - (w.hasKeep ? 6 : 0), box.w, box.h + (w.hasKeep ? 6 : 0), 4);
+  ctx.fill();
+  ctx.fillStyle = "#7a7468";
+  ctx.fillRect(box.x + 2, box.y + 2, box.w - 4, box.h - 4);
+  ctx.strokeStyle = "rgba(42, 40, 36, 0.45)";
+  ctx.lineWidth = 1;
+  for (let x = box.x + 10; x < box.x + box.w; x += 12) {
+    ctx.beginPath();
+    ctx.moveTo(x, box.y);
+    ctx.lineTo(x, box.y + box.h);
+    ctx.stroke();
+  }
+  for (let y = box.y + 10; y < box.y + box.h; y += 11) {
+    ctx.beginPath();
+    ctx.moveTo(box.x, y);
+    ctx.lineTo(box.x + box.w, y);
+    ctx.stroke();
+  }
+  if (!links.n) {
+    ctx.fillStyle = "#c8c2b4";
+    ctx.fillRect(box.x, box.y - 3, box.w, 4);
+    const merlons = Math.max(2, Math.floor(box.w / 14));
+    for (let i = 0; i < merlons; i++) {
+      const mx = box.x + 2 + i * (box.w / merlons);
+      ctx.fillStyle = "#8a8478";
+      ctx.fillRect(mx, box.y - 10, Math.max(6, box.w / merlons - 6), 8);
+    }
+  }
+}
+
+function fakeWork(kind: "wall" | "ditch", col: number, row: number, x: number, y: number): Work {
+  return {
+    id: -1,
+    kind,
+    col,
+    row,
+    x,
+    y,
+    hp: 1,
+    maxHp: 1,
+    spent: 0,
+    flash: 0,
+    wallTier: 0,
+    hasKeep: false,
+    mount: null,
+    cooldown: 0,
+    dmgLevel: 0,
+    rateLevel: 0,
+    aim: 0,
+  };
+}
+
+function drawPost(ctx: CanvasRenderingContext2D, x: number, y: number, color: string) {
+  ctx.fillStyle = "rgba(18, 17, 16, 0.55)";
+  ctx.beginPath();
+  ctx.arc(x, y + 1, 7, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.fillStyle = color;
+  ctx.beginPath();
+  ctx.arc(x, y, 5.5, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.fillStyle = "#121110";
+  ctx.beginPath();
+  ctx.arc(x, y, 2, 0, Math.PI * 2);
+  ctx.fill();
 }
 
 function drawKeep(ctx: CanvasRenderingContext2D, engine: GameEngine, atlas: Atlas) {
@@ -117,25 +273,13 @@ export function renderWorld(ctx: CanvasRenderingContext2D, engine: GameEngine, a
 
   for (const w of engine.works) {
     if (w.kind !== "ditch") continue;
-    const size = WORK_DRAW.ditch;
-    ctx.globalAlpha = 0.95;
-    ctx.drawImage(atlas.works.ditch, w.x - size.w / 2, w.y - size.h / 2, size.w, size.h);
-    ctx.globalAlpha = 1;
+    drawDitchCell(ctx, engine, atlas, w);
   }
 
   const placing = engine.selectedKind !== null && engine.phase === "playing";
   if (placing) {
-    ctx.fillStyle = "rgba(18, 17, 16, 0.16)";
+    ctx.fillStyle = "rgba(18, 17, 16, 0.12)";
     ctx.fillRect(0, 0, WORLD_W, WORLD_H);
-    ctx.strokeStyle = PATH_COLOR;
-    ctx.lineWidth = 36;
-    ctx.lineJoin = "round";
-    ctx.lineCap = "round";
-    ctx.beginPath();
-    ctx.moveTo(0, 448);
-    ctx.lineTo(KEEP_GATE.x, KEEP_GATE.y);
-    ctx.stroke();
-
     ctx.strokeStyle = GRID;
     ctx.lineWidth = 1;
     for (let c = 0; c <= COLS; c++) {
@@ -175,13 +319,17 @@ export function renderWorld(ctx: CanvasRenderingContext2D, engine: GameEngine, a
       ctx.drawImage(atlas.towers[kind], x - size.w / 2, y - size.h + 10, size.w, size.h);
       ctx.globalAlpha = 1;
     } else if (ok && (kind === "wall" || kind === "ditch")) {
-      ctx.globalAlpha = 0.6;
+      ctx.globalAlpha = 0.7;
       if (kind === "ditch") {
-        const size = WORK_DRAW.ditch;
-        ctx.drawImage(atlas.works.ditch, x - size.w / 2, y - size.h / 2, size.w, size.h);
+        drawDitchCell(ctx, engine, atlas, fakeWork("ditch", hc, hr, x, y));
       } else {
-        const size = WALL_TIERS[0]!.draw;
-        ctx.drawImage(atlas.walls[0], x - size.w / 2, y - size.h + 10, size.w, size.h);
+        const ghost = fakeWork("wall", hc, hr, x, y);
+        const links = workLinks(engine, hc, hr, "wall");
+        if (linked(links)) drawWallBody(ctx, ghost, links);
+        else {
+          const size = WALL_TIERS[0]!.draw;
+          ctx.drawImage(atlas.walls[0], x - size.w / 2, y - size.h + 10, size.w, size.h);
+        }
       }
       ctx.globalAlpha = 1;
     } else if (ok && (kind === "watch" || kind === "hero")) {
@@ -229,14 +377,30 @@ export function renderWorld(ctx: CanvasRenderingContext2D, engine: GameEngine, a
     ctx.strokeStyle = RANGE_STROKE;
     ctx.lineWidth = 1.5;
     ctx.stroke();
-    if (selRet.kind === "hero") {
-      ctx.setLineDash([6, 6]);
-      ctx.strokeStyle = "rgba(232, 224, 212, 0.45)";
+    const hoverX = engine.hoverCol >= 0 ? (engine.hoverCol + 0.5) * CELL : selRet.homeX;
+    const hoverY = engine.hoverRow >= 0 ? (engine.hoverRow + 0.5) * CELL : selRet.homeY;
+    const setting = engine.patrolEdit?.id === selRet.id;
+    const aX = setting && engine.patrolEdit?.step === "a" ? hoverX : selRet.homeX;
+    const aY = setting && engine.patrolEdit?.step === "a" ? hoverY : selRet.homeY;
+    const bX = setting && engine.patrolEdit?.step === "b" ? hoverX : selRet.hasPatrol ? selRet.patrolX : hoverX;
+    const bY = setting && engine.patrolEdit?.step === "b" ? hoverY : selRet.hasPatrol ? selRet.patrolY : hoverY;
+    const showLine = selRet.hasPatrol || setting || engine.selectedRetainerId === selRet.id;
+    if (showLine) {
+      ctx.setLineDash([7, 6]);
+      ctx.strokeStyle = "rgba(232, 224, 212, 0.55)";
+      ctx.lineWidth = 2;
       ctx.beginPath();
-      ctx.moveTo(selRet.homeX, selRet.homeY);
-      ctx.lineTo(selRet.hasPatrol ? selRet.patrolX : engine.hoverCol >= 0 ? (engine.hoverCol + 0.5) * CELL : selRet.homeX, selRet.hasPatrol ? selRet.patrolY : engine.hoverRow >= 0 ? (engine.hoverRow + 0.5) * CELL : selRet.homeY);
+      ctx.moveTo(aX, aY);
+      ctx.lineTo(bX, bY);
       ctx.stroke();
       ctx.setLineDash([]);
+      drawPost(ctx, aX, aY, "#c4b38a");
+      drawPost(ctx, bX, bY, "#e8e0d4");
+      ctx.font = "600 11px 'Source Sans 3', sans-serif";
+      ctx.textAlign = "center";
+      ctx.fillStyle = "#e8e0d4";
+      ctx.fillText("A", aX, aY - 12);
+      ctx.fillText("B", bX, bY - 12);
     }
   }
 
@@ -281,13 +445,29 @@ export function renderWorld(ctx: CanvasRenderingContext2D, engine: GameEngine, a
     } else if (item.kind === "wall") {
       const w = engine.works.find((x) => x.id === item.id);
       if (!w) continue;
-      const size = w.hasKeep ? KEEPLET_DRAW : WALL_TIERS[w.wallTier]!.draw;
-      const img = w.hasKeep ? atlas.keeplet : atlas.walls[w.wallTier];
+      const links = workLinks(engine, w.col, w.row, "wall");
+      const connected = linked(links);
       if (w.flash > 0) ctx.globalAlpha = 0.55 + 0.45 * Math.sin(w.flash * 18);
-      ctx.drawImage(img, w.x - size.w / 2, w.y - size.h + 12, size.w, size.h);
+      if (w.hasKeep) {
+        drawWallBody(ctx, w, links);
+        const size = KEEPLET_DRAW;
+        ctx.drawImage(atlas.keeplet, w.x - size.w / 2, w.y - size.h + 12, size.w, size.h);
+      } else if (connected) {
+        drawWallBody(ctx, w, links);
+        if (w.wallTier === 0) {
+          const size = WALL_TIERS[0]!.draw;
+          ctx.globalAlpha = (w.flash > 0 ? 0.55 + 0.45 * Math.sin(w.flash * 18) : 1) * 0.5;
+          ctx.drawImage(atlas.walls[0], w.x - size.w * 0.38, w.y - size.h * 0.7 + 8, size.w * 0.76, size.h * 0.76);
+          ctx.globalAlpha = w.flash > 0 ? 0.55 + 0.45 * Math.sin(w.flash * 18) : 1;
+        }
+      } else {
+        const size = WALL_TIERS[w.wallTier]!.draw;
+        ctx.drawImage(atlas.walls[w.wallTier], w.x - size.w / 2, w.y - size.h + 12, size.w, size.h);
+      }
       if (w.mount) {
         const gun = TOWER_DRAW[w.mount];
         const scale = 0.62;
+        const size = w.hasKeep ? KEEPLET_DRAW : WALL_TIERS[w.wallTier]!.draw;
         ctx.drawImage(
           atlas.towers[w.mount],
           w.x - (gun.w * scale) / 2,
@@ -298,6 +478,7 @@ export function renderWorld(ctx: CanvasRenderingContext2D, engine: GameEngine, a
       }
       ctx.globalAlpha = 1;
       if (w.hp < w.maxHp) {
+        const size = w.hasKeep ? KEEPLET_DRAW : WALL_TIERS[w.wallTier]!.draw;
         const ratio = Math.max(0, w.hp / w.maxHp);
         ctx.fillStyle = "rgba(18, 17, 16, 0.75)";
         ctx.fillRect(w.x - 16, w.y - size.h - 4, 32, 4);

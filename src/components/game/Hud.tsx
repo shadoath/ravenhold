@@ -16,6 +16,7 @@ type Props = {
   onSell: () => void;
   onPause: () => void;
   onMute: () => void;
+  onSetPatrol: () => void;
 };
 
 function Chip({
@@ -59,6 +60,7 @@ export function Hud({
   onSell,
   onMute,
   onPause,
+  onSetPatrol,
 }: Props) {
   const showPlay = snap.phase === "playing" || snap.phase === "paused";
   if (!showPlay) return null;
@@ -126,7 +128,7 @@ export function Hud({
         <div className="pointer-events-auto mx-auto flex max-w-5xl flex-col gap-2">
           {snap.towersBuilt === 0 && snap.worksBuilt === 0 && snap.wave === 0 && !snap.selectedKind ? (
             <p className="self-center rounded-md border border-border bg-surface/90 px-3 py-1.5 text-center text-xs text-fg shadow-sm backdrop-blur-sm sm:text-sm">
-              Palisades start as stakes. Upgrade the timber, then stone, then raise a tower and mount a gun.
+              Palisades fuse when they touch. Drag a line. Build anywhere but the keep.
             </p>
           ) : null}
 
@@ -287,19 +289,32 @@ export function Hud({
                   <p className="text-xs text-muted">
                     {snap.selectedRetainer.hp}/{snap.selectedRetainer.maxHp} · {snap.selectedRetainer.blurb}
                   </p>
-                  {snap.selectedRetainer.kind === "hero" ? (
-                    <p className="text-xs text-subtle">
-                      {snap.selectedRetainer.hasPatrol ? "Patrolling the line you marked." : "Tap the field to set a patrol."}
-                    </p>
-                  ) : null}
+                  <p className="text-xs text-subtle">
+                    {snap.selectedRetainer.settingPatrol
+                      ? snap.selectedRetainer.patrolStep === "a"
+                        ? "Tap post A — the near end of the walk."
+                        : "Tap post B — the far end. He will walk A to B."
+                      : snap.selectedRetainer.hasPatrol
+                        ? "Walking the line. Tap the field to move post B, or set both posts again."
+                        : "Tap the field for post B, or set a full A–B patrol."}
+                  </p>
                 </div>
-                <button
-                  type="button"
-                  onClick={onSell}
-                  className="min-h-11 rounded-md border border-border px-3 text-sm font-medium text-muted transition-transform duration-[var(--motion-quick)] active:scale-[0.96]"
-                >
-                  Sell {snap.selectedRetainer.sellValue}g
-                </button>
+                <div className="flex flex-wrap gap-2">
+                  <button
+                    type="button"
+                    onClick={onSetPatrol}
+                    className="min-h-11 rounded-md bg-accent px-3 text-sm font-medium text-accent-fg transition-transform duration-[var(--motion-quick)] active:scale-[0.96]"
+                  >
+                    Set patrol
+                  </button>
+                  <button
+                    type="button"
+                    onClick={onSell}
+                    className="min-h-11 rounded-md border border-border px-3 text-sm font-medium text-muted transition-transform duration-[var(--motion-quick)] active:scale-[0.96]"
+                  >
+                    Sell {snap.selectedRetainer.sellValue}g
+                  </button>
+                </div>
               </div>
             </div>
           ) : null}

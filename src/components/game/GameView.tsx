@@ -46,6 +46,7 @@ export function GameView() {
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
   const engineRef = useRef<GameEngine | null>(null);
   const atlasRef = useRef<Atlas | null>(null);
+  const paintingRef = useRef(false);
   const [snap, setSnap] = useState<HudSnapshot>(emptySnap);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -151,15 +152,25 @@ export function GameView() {
     };
   }, []);
 
-  const onPointer = (e: React.PointerEvent<HTMLCanvasElement>, kind: "move" | "down") => {
+  const onPointer = (e: React.PointerEvent<HTMLCanvasElement>, kind: "move" | "down" | "up") => {
     const canvas = canvasRef.current;
     const eng = engineRef.current;
     if (!canvas || !eng) return;
     const world = pointerToWorld(canvas, e.clientX, e.clientY);
     eng.hover(world.x, world.y);
+    if (kind === "up") {
+      paintingRef.current = false;
+      eng.endPaint();
+      return;
+    }
     if (kind === "down") {
+      paintingRef.current = true;
       eng.tap(world.x, world.y);
       bump();
+      return;
+    }
+    if (paintingRef.current && (eng.selectedKind === "wall" || eng.selectedKind === "ditch")) {
+      if (eng.paint(world.x, world.y)) bump();
     }
   };
 
@@ -194,6 +205,8 @@ export function GameView() {
             (e.target as HTMLCanvasElement).setPointerCapture(e.pointerId);
             onPointer(e, "down");
           }}
+          onPointerUp={(e) => onPointer(e, "up")}
+          onPointerCancel={(e) => onPointer(e, "up")}
         />
         {error ? (
           <p className="absolute inset-0 z-30 flex items-center justify-center bg-bg p-6 text-center text-sm text-danger">
@@ -239,6 +252,10 @@ export function GameView() {
         }}
         onMute={() => {
           engineRef.current?.toggleMute();
+          bump();
+        }}
+        onSetPatrol={() => {
+          engineRef.current?.beginPatrol();
           bump();
         }}
       />

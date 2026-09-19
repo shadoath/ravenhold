@@ -18,7 +18,7 @@ export const COLS = 32;
 export const ROWS = 18;
 export const CELL = WORLD_W / COLS;
 export const FIXED_DT = 1 / 60;
-export const START_GOLD = 220;
+export const START_GOLD = 280;
 export const START_LIVES = 20;
 export const SELL_RATIO = 0.55;
 export const MAX_DMG_LEVEL = 2;
@@ -100,7 +100,7 @@ export const WORKS: Record<WorkKind, WorkDef> = {
   wall: {
     kind: "wall",
     name: "Stakes",
-    blurb: "Thin sticks. Upgrade to timber, then stone, then raise a tower and mount a gun.",
+    blurb: "Thin sticks. Drag a line — they lash together. Then timber, stone, a tower.",
     cost: 12,
     hp: 48,
   },
@@ -171,24 +171,24 @@ export const RETAINERS: Record<RetainerKind, RetainerDef> = {
   watch: {
     kind: "watch",
     name: "Watch",
-    blurb: "A spearman who patrols his post and holds a choke.",
+    blurb: "A spearman. Place him, then tap a far post — he walks the line.",
     cost: 90,
     hp: 120,
     range: 52,
     damage: 12,
     fireRate: 1.15,
-    speed: 52,
+    speed: 58,
   },
   hero: {
     kind: "hero",
     name: "Marshal",
-    blurb: "One captain. Place him, then tap a second point for his patrol.",
+    blurb: "One captain. Set patrol posts A and B; he holds the whole run.",
     cost: 210,
     hp: 260,
     range: 64,
     damage: 24,
     fireRate: 1.4,
-    speed: 64,
+    speed: 72,
   },
 };
 
@@ -244,60 +244,79 @@ export const ENEMIES: Record<EnemyKind, EnemyDef> = {
 };
 
 export const WAVES: WaveSpec[] = [
-  { name: "Scouts", entries: [{ kind: "raider", count: 8, interval: 0.9, delay: 0 }] },
-  { name: "The line swells", entries: [{ kind: "raider", count: 14, interval: 0.7, delay: 0 }] },
+  {
+    name: "Scouts",
+    hint: "A thin line from the west",
+    entries: [{ kind: "raider", count: 12, interval: 0.08, delay: 0 }],
+  },
+  {
+    name: "The line swells",
+    hint: "Two ranks across the field",
+    entries: [
+      { kind: "raider", count: 14, interval: 0.07, delay: 0 },
+      { kind: "raider", count: 14, interval: 0.07, delay: 5.4 },
+    ],
+  },
   {
     name: "Outriders",
+    hint: "Wolves on the flanks",
     entries: [
-      { kind: "raider", count: 6, interval: 0.8, delay: 0 },
-      { kind: "wolf", count: 8, interval: 0.62, delay: 1 },
+      { kind: "raider", count: 10, interval: 0.08, delay: 0 },
+      { kind: "wolf", count: 10, interval: 0.08, delay: 1.6 },
+      { kind: "raider", count: 8, interval: 0.08, delay: 6.2 },
     ],
   },
   {
     name: "Iron in the grass",
     entries: [
-      { kind: "raider", count: 8, interval: 0.7, delay: 0 },
-      { kind: "shield", count: 4, interval: 1.1, delay: 1.8 },
+      { kind: "raider", count: 12, interval: 0.07, delay: 0 },
+      { kind: "shield", count: 6, interval: 0.18, delay: 2.2 },
+      { kind: "raider", count: 10, interval: 0.08, delay: 6.5 },
     ],
   },
   {
     name: "Ladders",
     hint: "They walk the ditches",
     entries: [
-      { kind: "raider", count: 10, interval: 0.62, delay: 0, gear: "ladder" },
-      { kind: "wolf", count: 6, interval: 0.55, delay: 1.4, gear: "ladder" },
+      { kind: "raider", count: 14, interval: 0.07, delay: 0, gear: "ladder" },
+      { kind: "wolf", count: 10, interval: 0.07, delay: 2.4, gear: "ladder" },
     ],
   },
   {
     name: "Mixed host",
     entries: [
-      { kind: "raider", count: 10, interval: 0.6, delay: 0 },
-      { kind: "wolf", count: 8, interval: 0.5, delay: 0.8 },
-      { kind: "shield", count: 3, interval: 1.15, delay: 2.4 },
+      { kind: "raider", count: 12, interval: 0.07, delay: 0 },
+      { kind: "wolf", count: 10, interval: 0.06, delay: 1.2 },
+      { kind: "shield", count: 5, interval: 0.2, delay: 3.4 },
+      { kind: "raider", count: 10, interval: 0.07, delay: 7.2 },
     ],
   },
   {
     name: "Shield wall",
+    hint: "A wide iron front",
     entries: [
-      { kind: "shield", count: 8, interval: 0.85, delay: 0 },
-      { kind: "wolf", count: 8, interval: 0.52, delay: 1.5 },
+      { kind: "shield", count: 12, interval: 0.1, delay: 0 },
+      { kind: "wolf", count: 10, interval: 0.07, delay: 2.8 },
+      { kind: "shield", count: 8, interval: 0.12, delay: 6.4 },
     ],
   },
   {
     name: "Rams",
     hint: "They smash palisades",
     entries: [
-      { kind: "shield", count: 8, interval: 0.8, delay: 0, gear: "ram" },
-      { kind: "raider", count: 8, interval: 0.55, delay: 1.6 },
+      { kind: "shield", count: 12, interval: 0.1, delay: 0, gear: "ram" },
+      { kind: "raider", count: 12, interval: 0.07, delay: 2.4 },
+      { kind: "shield", count: 8, interval: 0.12, delay: 6.8, gear: "ram" },
     ],
   },
   {
     name: "No quarter",
     hint: "Ladders and rams together",
     entries: [
-      { kind: "raider", count: 8, interval: 0.5, delay: 0, gear: "ladder" },
-      { kind: "wolf", count: 10, interval: 0.46, delay: 0.7, gear: "ladder" },
-      { kind: "shield", count: 6, interval: 0.7, delay: 2, gear: "ram" },
+      { kind: "raider", count: 12, interval: 0.06, delay: 0, gear: "ladder" },
+      { kind: "wolf", count: 12, interval: 0.06, delay: 1.1, gear: "ladder" },
+      { kind: "shield", count: 10, interval: 0.1, delay: 3.2, gear: "ram" },
+      { kind: "raider", count: 10, interval: 0.07, delay: 7.5 },
     ],
   },
   {
@@ -305,9 +324,10 @@ export const WAVES: WaveSpec[] = [
     hint: "The ram at the head of the host",
     entries: [
       { kind: "warlord", count: 1, interval: 1, delay: 0.4, gear: "ram" },
-      { kind: "shield", count: 8, interval: 0.8, delay: 1.4, gear: "ram" },
-      { kind: "raider", count: 12, interval: 0.42, delay: 2.6, gear: "ladder" },
-      { kind: "wolf", count: 10, interval: 0.4, delay: 3.4 },
+      { kind: "shield", count: 12, interval: 0.1, delay: 1.2, gear: "ram" },
+      { kind: "raider", count: 14, interval: 0.06, delay: 2.8, gear: "ladder" },
+      { kind: "wolf", count: 12, interval: 0.06, delay: 4.2 },
+      { kind: "shield", count: 8, interval: 0.12, delay: 8, gear: "ram" },
     ],
   },
 ];
